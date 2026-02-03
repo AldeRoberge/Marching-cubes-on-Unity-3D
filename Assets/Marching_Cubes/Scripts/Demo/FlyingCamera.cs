@@ -26,11 +26,23 @@ public class FlyingCamera : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        // Only allow movement and rotation if mouse is locked
+        if (Cursor.visible)
+            return;
+
         var dir = Input.GetAxis("Vertical") * transform.forward + Input.GetAxis("Horizontal") * transform.right;
         transform.position += (dir * _speed * Time.deltaTime);
+        
+        // Space and LeftShift for up/down
         if (Input.GetKey(KeyCode.Space))
             transform.position += Vector3.up * _speed * Time.deltaTime;
         else if (Input.GetKey(KeyCode.LeftShift))
+            transform.position -= Vector3.up * _speed * Time.deltaTime;
+        
+        // Q and E for up/down
+        if (Input.GetKey(KeyCode.E))
+            transform.position += Vector3.up * _speed * Time.deltaTime;
+        else if (Input.GetKey(KeyCode.Q))
             transform.position -= Vector3.up * _speed * Time.deltaTime;
 
         yaw += _rotationSpeed * Input.GetAxis("Mouse X");
