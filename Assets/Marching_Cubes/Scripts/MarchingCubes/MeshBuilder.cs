@@ -12,6 +12,9 @@ public class MeshBuilder : Singleton<MeshBuilder>
     [Tooltip("Allow to get a middle point between the voxel vertices in function of the weight of the vertices")]
     public bool _interpolate;
 
+    [Tooltip("Apply greedy meshing optimization to reduce triangle count by merging coplanar faces")]
+    public bool _useGreedyMeshing = false;
+
 
     /// <summary>
     /// Method that calculate cubes, vertex and mesh in that order of a chunk.
@@ -30,23 +33,65 @@ public class MeshBuilder : Singleton<MeshBuilder>
         JobHandle jobHandle = buildChunkJob.Schedule();
         jobHandle.Complete();
 
+        // Optionally apply greedy meshing optimization
+        NativeList<float3> finalVertices;
+        NativeList<float2> finalUVs;
+        
+        if (_useGreedyMeshing && buildChunkJob.vertex.Length > 0)
+        {
+            // Create temporary arrays from the job output
+            NativeArray<float3> tempVertices = new NativeArray<float3>(buildChunkJob.vertex.Length, Allocator.TempJob);
+            NativeArray<float2> tempUVs = new NativeArray<float2>(buildChunkJob.uv.Length, Allocator.TempJob);
+            
+            for (int i = 0; i < buildChunkJob.vertex.Length; i++)
+            {
+                tempVertices[i] = buildChunkJob.vertex[i];
+                tempUVs[i] = buildChunkJob.uv[i];
+            }
+            
+            // Apply greedy meshing
+            finalVertices = new NativeList<float3>(500, Allocator.TempJob);
+            finalUVs = new NativeList<float2>(100, Allocator.TempJob);
+            
+            GreedyMeshJob greedyMeshJob = new GreedyMeshJob
+            {
+                inputVertices = tempVertices,
+                inputUVs = tempUVs,
+                outputVertices = finalVertices,
+                outputUVs = finalUVs
+            };
+            
+            JobHandle greedyHandle = greedyMeshJob.Schedule();
+            greedyHandle.Complete();
+            
+            // Clean up temporary arrays
+            tempVertices.Dispose();
+            tempUVs.Dispose();
+        }
+        else
+        {
+            // Use original output directly
+            finalVertices = buildChunkJob.vertex;
+            finalUVs = buildChunkJob.uv;
+        }
+
         //Get all the data from the jobs and use to generate a Mesh
         Mesh meshGenerated = new Mesh();
-        Vector3[] meshVert = new Vector3[buildChunkJob.vertex.Length];
-        int[] meshTriangles = new int[buildChunkJob.vertex.Length];
-        for (int i = 0; i < buildChunkJob.vertex.Length; i++)
+        Vector3[] meshVert = new Vector3[finalVertices.Length];
+        int[] meshTriangles = new int[finalVertices.Length];
+        for (int i = 0; i < finalVertices.Length; i++)
         {
-            meshVert[i] = buildChunkJob.vertex[i];
+            meshVert[i] = finalVertices[i];
             meshTriangles[i] = i;
         }
 
         meshGenerated.vertices = meshVert;
 
-        Vector2[] meshUV = new Vector2[buildChunkJob.vertex.Length];
+        Vector2[] meshUV = new Vector2[finalVertices.Length];
 
-        for (int i = 0; i < buildChunkJob.vertex.Length; i++)
+        for (int i = 0; i < finalVertices.Length; i++)
         {
-            meshUV[i] = buildChunkJob.uv[i];
+            meshUV[i] = finalUVs[i];
         }
 
         meshGenerated.uv = meshUV;
@@ -55,6 +100,12 @@ public class MeshBuilder : Singleton<MeshBuilder>
         meshGenerated.RecalculateTangents();
 
         //Dispose (Clear the jobs NativeLists)
+        if (_useGreedyMeshing && buildChunkJob.vertex.Length > 0)
+        {
+            finalVertices.Dispose();
+            finalUVs.Dispose();
+        }
+        
         buildChunkJob.vertex.Dispose();
         buildChunkJob.uv.Dispose();
         buildChunkJob.chunkData.Dispose();

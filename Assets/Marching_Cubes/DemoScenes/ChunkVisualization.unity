@@ -345,6 +345,11 @@ PrefabInstance:
       propertyPath: _interpolate
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 917872863160039548, guid: 0dd8af356d25ee441896c42d31ada3b4,
+        type: 3}
+      propertyPath: _useGreedyMeshing
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 2758482650394560724, guid: 0dd8af356d25ee441896c42d31ada3b4,
         type: 3}
       propertyPath: m_RootOrder
