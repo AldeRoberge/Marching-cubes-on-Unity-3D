@@ -177,6 +177,18 @@ public class CameraTerrainModifier : MonoBehaviour
             }
         }
 
+        // Detect Right Click (Remove Voxel)
+        if (Input.GetMouseButtonDown(1))
+        {
+            if (Physics.Raycast(transform.position, transform.forward, out hit, _rangeHit))
+            {
+                DetermineSelection(hit.point);
+                // Apply large negative modification to remove
+                Debug.Log($"[TERRAFORM RCT] Right Click: Removing {_currentPreviewPoints.Count} points");
+                chunkManager.ModifyDiscretePoints(_currentPreviewPoints, -255, 0);
+            }
+        }
+
         // Processing Drag
         if (_isDragging && Input.GetMouseButton(0))
         {
