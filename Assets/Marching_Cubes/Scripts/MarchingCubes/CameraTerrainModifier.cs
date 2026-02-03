@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.UI;
 
 public class CameraTerrainModifier : MonoBehaviour
@@ -9,71 +10,63 @@ public class CameraTerrainModifier : MonoBehaviour
     [Tooltip("Range where the player can interact with the terrain")]
     public float _rangeHit = 100;
 
-    [Tooltip("Size of the brush, number of vertex modified")]
-    public float _sizeHit = 6;
-
-    [Tooltip("Color of the new voxels generated")] [Range(0, Constants.NUMBER_MATERIALS - 1)]
+    [Tooltip("Color of the new voxels generated")]
+    [Range(0, Constants.NUMBER_MATERIALS - 1)]
     public int _buildingMaterial;
 
-    [Tooltip("Pixels of vertical mouse movement per terrain height step")]
-    public float _pixelsPerHeightStep = 20f;
+    [Tooltip("Sensitivity of the mouse drag")]
+    public float _sensitivity = 1.0f;
 
-    [Tooltip("Height change per step when dragging (increase for more visible effect)")]
-    public float _heightStepSize = 15f; // INCREASED from 5 to 15 for more visible effect
+    [Tooltip("Density change per unit of mouse movement")]
+    public float _densityChangePerUnit = 50f;
 
     // Terraforming modes
-    public enum TerraformMode { Smooth, Cliff }
-    public enum SelectionType { Area, SingleCorner }
 
-    private TerraformMode _currentMode = TerraformMode.Smooth;
-    private SelectionType _currentSelection = SelectionType.Area;
+    public enum TerraformMode { Standard } // Simplified for RCT style
+    public enum SelectionMode { Face, Corner }
+
+    private TerraformMode _currentMode = TerraformMode.Standard;
+    private SelectionMode _currentSelectionMode = SelectionMode.Face;
 
     // Drag state
     private bool _isDragging;
-    private float _dragStartMouseY;
-    private float _accumulatedMouseDelta;
-    private int _currentHeightStep;
-    private Vector3 _lockedHitPoint;
-    private Vector3 _lockedHitNormal;
+    private float _accumulatedDrag; // Accumulates raw mouse input
+    private float _appliedAccumulator; // Tracks applied modifications to handle remainders
+
+    // Selection state
+
+
+    private List<Vector3> _lockedSelectedPoints = new List<Vector3>();
+    private Vector3 _lockedHitCenter;
     private bool _hasLockedSelection;
 
     private RaycastHit hit;
     private ChunkManager chunkManager;
+    private FlyingCamera _flyingCamera;
 
     // Gizmo visualization
-    private Vector3 _currentHitPoint;
+    private List<Vector3> _currentPreviewPoints = new List<Vector3>();
+    private Vector3 _currentPreviewCenter;
     private bool _hasCurrentHit;
 
     void Awake()
     {
         chunkManager = ChunkManager.Instance;
+        _flyingCamera = GetComponent<FlyingCamera>();
+        if (_flyingCamera == null) _flyingCamera = Camera.main.GetComponent<FlyingCamera>();
+        if (_flyingCamera == null) _flyingCamera = FindObjectOfType<FlyingCamera>();
+
+
         UpdateUI();
-        Debug.Log("CameraTerrainModifier initialized");
+        Debug.Log("CameraTerrainModifier initialized (RCT Style)");
     }
 
-    // Update is called once per frame
     void Update()
     {
-        // Handle terraforming mode toggle (T key)
-        if (Input.GetKeyDown(KeyCode.T))
-        {
-            _currentMode = (_currentMode == TerraformMode.Smooth) ? TerraformMode.Cliff : TerraformMode.Smooth;
-            UpdateUI();
-            Debug.Log($"Mode switched to: {_currentMode}");
-        }
-
-        // Handle selection type toggle (G key)
-        if (Input.GetKeyDown(KeyCode.G))
-        {
-            _currentSelection = (_currentSelection == SelectionType.Area) ? SelectionType.SingleCorner : SelectionType.Area;
-            UpdateUI();
-            Debug.Log($"Selection switched to: {_currentSelection}");
-        }
-
-        // Terraforming drag system (LEFT mouse button - changed from middle)
+        // Terraforming drag system
         HandleTerraformingDrag();
 
-        // Update gizmo preview (raycast every frame for visual feedback)
+        // Update gizmo preview
         UpdateGizmoPreview();
 
         //Inputs
@@ -87,36 +80,71 @@ public class CameraTerrainModifier : MonoBehaviour
             _buildingMaterial--;
             UpdateUI();
         }
-
-        if (Input.GetKeyDown(KeyCode.Plus) || Input.GetKeyDown(KeyCode.KeypadPlus))
-        {
-            _sizeHit++;
-            UpdateUI();
-        }
-        else if ((Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus)) && _sizeHit > 1)
-        {
-            _sizeHit--;
-            UpdateUI();
-        }
     }
 
     public void UpdateUI()
     {
-        _textSize.text = "(+ -) Brush size: " + _sizeHit + " | (T) Mode: " + _currentMode + " | (G) Selection: " + _currentSelection;
-        _textMaterial.text = "(Mouse wheel) Actual material: " + _buildingMaterial + " | (Left Mouse) Drag to terraform";
+        _textSize.text = "RCT Mode | Auto-Selection (Face/Corner)";
+        _textMaterial.text = "(Mouse wheel) Material: " + _buildingMaterial + " | (Left Mouse) Drag to Raise/Lower";
     }
 
-    /// <summary>
-    /// Update the gizmo preview showing where the user is aiming
-    /// </summary>
+    private void DetermineSelection(Vector3 hitPoint)
+    {
+        Vector3 localPos = hitPoint / Constants.VOXEL_SIDE;
+        Vector3 rounded = new Vector3(Mathf.Round(localPos.x), Mathf.Round(localPos.y), Mathf.Round(localPos.z));
+        Vector3 diff = localPos - rounded;
+
+        // Threshold to determine if we are looking at a corner or the middle of a face
+        // If close to x-integer AND z-integer (edges), it's a corner.
+        float cornerThreshold = 0.25f;
+
+
+        _currentPreviewPoints.Clear();
+        _currentPreviewCenter = itemSpaceToWorld(rounded); // Use rounded as center for corner, adjusted for face later
+
+        // Check if we are aiming at a corner (both X and Z are close to integers)
+        // Checking X and Z only because we usually edit the 'ground' (Y). 
+        // But for true 3D, we might check all. Assuming Top-Down/Angle view on "Ground".
+        if (Mathf.Abs(diff.x) < cornerThreshold && Mathf.Abs(diff.z) < cornerThreshold)
+        {
+            _currentSelectionMode = SelectionMode.Corner;
+            _currentPreviewPoints.Add(itemSpaceToWorld(rounded));
+            _currentPreviewCenter = itemSpaceToWorld(rounded);
+        }
+        else
+        {
+            _currentSelectionMode = SelectionMode.Face;
+
+            // Identify the face (Cell)
+            // We want the floor of the position to find the bottom-left corner of the cell
+
+            int x = Mathf.FloorToInt(localPos.x);
+            int z = Mathf.FloorToInt(localPos.z);
+            int y = Mathf.RoundToInt(localPos.y); // Use aims Y level
+
+            // Face (Quad) corners
+            _currentPreviewPoints.Add(itemSpaceToWorld(new Vector3(x, y, z)));
+            _currentPreviewPoints.Add(itemSpaceToWorld(new Vector3(x + 1, y, z)));
+            _currentPreviewPoints.Add(itemSpaceToWorld(new Vector3(x, y, z + 1)));
+            _currentPreviewPoints.Add(itemSpaceToWorld(new Vector3(x + 1, y, z + 1)));
+
+
+            _currentPreviewCenter = itemSpaceToWorld(new Vector3(x + 0.5f, y, z + 0.5f));
+        }
+    }
+
+    private Vector3 itemSpaceToWorld(Vector3 itemSpace)
+    {
+        return itemSpace * Constants.VOXEL_SIDE;
+    }
+
     private void UpdateGizmoPreview()
     {
-        // Only show preview when not dragging
         if (!_isDragging)
         {
             if (Physics.Raycast(transform.position, transform.forward, out hit, _rangeHit))
             {
-                _currentHitPoint = hit.point;
+                DetermineSelection(hit.point);
                 _hasCurrentHit = true;
             }
             else
@@ -126,201 +154,136 @@ public class CameraTerrainModifier : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Handle the drag-based terraforming system
-    /// Track mouse press, drag movement, and convert to height steps
-    /// </summary>
     private void HandleTerraformingDrag()
     {
-        // Detect drag start (LEFT mouse button press - changed from button 2 to button 0)
+        // Detect drag start
         if (Input.GetMouseButtonDown(0))
         {
-            Debug.Log($"[TERRAFORM] Left mouse button DOWN - Starting raycast from {transform.position} forward {transform.forward}");
-            
-            // Lock the terrain selection
             if (Physics.Raycast(transform.position, transform.forward, out hit, _rangeHit))
             {
                 _isDragging = true;
-                _dragStartMouseY = Input.mousePosition.y;
-                _accumulatedMouseDelta = 0f;
-                _currentHeightStep = 0;
-                _lockedHitPoint = hit.point;
-                _lockedHitNormal = hit.normal;
-                _hasLockedSelection = true;
+                if (_flyingCamera != null) _flyingCamera.InputLocked = true;
 
-                Debug.Log($"[TERRAFORM] ✓ DRAG STARTED | Hit: {_lockedHitPoint} | Normal: {_lockedHitNormal} | Mouse Y: {_dragStartMouseY}");
-                Debug.Log($"[TERRAFORM] Hit Collider: {hit.collider.name} | Distance: {hit.distance}");
-            }
-            else
-            {
-                Debug.LogWarning($"[TERRAFORM] ✗ RAYCAST FAILED | Range: {_rangeHit} | From: {transform.position} | Direction: {transform.forward}");
+
+                _accumulatedDrag = 0f;
+                _appliedAccumulator = 0f;
+
+                // LOCK the current selection
+
+                DetermineSelection(hit.point);
+                _lockedSelectedPoints = new List<Vector3>(_currentPreviewPoints);
+                _lockedHitCenter = _currentPreviewCenter;
+                _hasLockedSelection = true;
             }
         }
 
-        // Track vertical mouse movement during drag (LEFT mouse button - changed from button 2 to button 0)
+        // Processing Drag
         if (_isDragging && Input.GetMouseButton(0))
         {
-            float currentMouseY = Input.mousePosition.y;
-            float mouseDelta = currentMouseY - _dragStartMouseY;
-            
-            // Calculate height step from accumulated mouse movement
-            int newHeightStep = Mathf.RoundToInt(mouseDelta / _pixelsPerHeightStep);
-            
-            // Clamp to terrain height limits
-            int maxSteps = Mathf.FloorToInt(Constants.MAX_HEIGHT / 2 / _heightStepSize);
-            newHeightStep = Mathf.Clamp(newHeightStep, -maxSteps, maxSteps);
+            // Use Input.GetAxis for delta logic to support locked cursor
 
-            // Debug mouse movement every frame while dragging
-            if (Time.frameCount % 30 == 0) // Log every 30 frames to avoid spam
-            {
-                Debug.Log($"[TERRAFORM] Dragging | Mouse Delta: {mouseDelta:F1}px | Current Step: {_currentHeightStep} | New Step: {newHeightStep}");
-            }
+            float inputDelta = Input.GetAxis("Mouse Y");
 
-            // Apply terrain modification if height step changed
-            if (newHeightStep != _currentHeightStep && _hasLockedSelection)
+            // Accumulate input based on sensitivity
+
+            _accumulatedDrag += inputDelta * _sensitivity;
+
+            // Calculate total modification that SHOULD exist based on accumulated drag
+            // 1 unit of drag = _densityChangePerUnit density change
+
+            float targetModification = _accumulatedDrag * _densityChangePerUnit;
+
+            // Calculate how much we have already applied
+            // We want to apply the difference between target and what we've already done
+
+            float modificationDelta = targetModification - _appliedAccumulator;
+
+            // Only apply if we have at least +/- 1 unit of integer change
+
+            int amountToApply = (int)modificationDelta;
+
+
+            if (amountToApply != 0)
             {
-                int stepDifference = newHeightStep - _currentHeightStep;
-                Debug.Log($"[TERRAFORM] ⚡ STEP CHANGE | Difference: {stepDifference} | Mouse Delta: {mouseDelta:F1}px");
-                ApplyTerraformOperation(stepDifference);
-                _currentHeightStep = newHeightStep;
+                ApplyTerraformOperation(amountToApply);
+                _appliedAccumulator += amountToApply; // Track what we physically applied
             }
         }
 
-        // Detect drag end (LEFT mouse button release - changed from button 2 to button 0)
+        // Detect drag end
         if (Input.GetMouseButtonUp(0))
         {
-            if (_isDragging)
-            {
-                Debug.Log($"[TERRAFORM] ✓ DRAG ENDED | Total Steps: {_currentHeightStep} | Total Height Change: {_currentHeightStep * _heightStepSize}");
-                _isDragging = false;
-                _hasLockedSelection = false;
-            }
+            _isDragging = false;
+            if (_flyingCamera != null) _flyingCamera.InputLocked = false;
+            _hasLockedSelection = false;
         }
     }
 
-    /// <summary>
-    /// Apply the terrain modification based on current mode and selection type
-    /// </summary>
-    /// <param name="stepDifference">Number of height steps to apply (positive = raise, negative = lower)</param>
-    private void ApplyTerraformOperation(int stepDifference)
+    private void ApplyTerraformOperation(int modificationAmount)
     {
-        if (!_hasLockedSelection)
-        {
-            Debug.LogWarning("[TERRAFORM] Cannot apply - no locked selection!");
-            return;
-        }
+        if (!_hasLockedSelection || _lockedSelectedPoints.Count == 0) return;
 
-        float modification = stepDifference * _heightStepSize;
-        
-        Debug.Log($"[TERRAFORM] === APPLYING OPERATION ===");
-        Debug.Log($"[TERRAFORM] Step Difference: {stepDifference}");
-        Debug.Log($"[TERRAFORM] Height Step Size: {_heightStepSize}");
-        Debug.Log($"[TERRAFORM] Calculated Modification: {modification}");
-        Debug.Log($"[TERRAFORM] Position: {_lockedHitPoint}");
-        Debug.Log($"[TERRAFORM] Brush Size: {_sizeHit}");
-        Debug.Log($"[TERRAFORM] Material: {_buildingMaterial}");
-        Debug.Log($"[TERRAFORM] Mode: {_currentMode}");
-        Debug.Log($"[TERRAFORM] Selection: {_currentSelection}");
+        Debug.Log($"[TERRAFORM RCT] Applying {modificationAmount} to {_lockedSelectedPoints.Count} points.");
 
-        if (_currentSelection == SelectionType.Area)
-        {
-            // Area-based modification
-            if (_currentMode == TerraformMode.Smooth)
-            {
-                // Smooth mode: gradient falloff based on distance
-                Debug.Log($"[TERRAFORM] Calling ModifyChunkData for SMOOTH mode");
-                chunkManager.ModifyChunkData(_lockedHitPoint, _sizeHit, modification, _buildingMaterial);
-            }
-            else // Cliff mode
-            {
-                // Cliff mode: uniform height change across entire area
-                // Apply stronger modification for cliff effect
-                float cliffModification = modification * 3f; // INCREASED multiplier for cliff effect
-                Debug.Log($"[TERRAFORM] Calling ModifyChunkData for CLIFF mode | Amplified Mod: {cliffModification}");
-                chunkManager.ModifyChunkData(_lockedHitPoint, _sizeHit, cliffModification, _buildingMaterial);
-            }
-        }
-        else // SingleCorner
-        {
-            // Single corner modification
-            float singlePointRange = 0.5f;
-            Debug.Log($"[TERRAFORM] Calling ModifyChunkData for SINGLE CORNER | Range: {singlePointRange}");
-            chunkManager.ModifyChunkData(_lockedHitPoint, singlePointRange, modification, _buildingMaterial);
-        }
 
-        Debug.Log($"[TERRAFORM] === OPERATION COMPLETE ===\n");
+        chunkManager.ModifyDiscretePoints(_lockedSelectedPoints, modificationAmount, _buildingMaterial);
     }
 
 #if UNITY_EDITOR
-    /// <summary>
-    /// Draw gizmos to visualize the terraforming selection
-    /// </summary>
     void OnDrawGizmos()
     {
-        // Draw preview when hovering (yellow/green)
+        // Draw Preview (Green)
         if (_hasCurrentHit && !_isDragging)
         {
             Gizmos.color = Color.green;
-            
-            if (_currentSelection == SelectionType.Area)
-            {
-                // Draw sphere for area selection
-                Gizmos.DrawWireSphere(_currentHitPoint, _sizeHit * Constants.VOXEL_SIDE / 2);
-                
-                // Draw cross at center
-                float crossSize = 0.5f;
-                Gizmos.DrawLine(_currentHitPoint + Vector3.left * crossSize, _currentHitPoint + Vector3.right * crossSize);
-                Gizmos.DrawLine(_currentHitPoint + Vector3.forward * crossSize, _currentHitPoint + Vector3.back * crossSize);
-                Gizmos.DrawLine(_currentHitPoint + Vector3.up * crossSize, _currentHitPoint + Vector3.down * crossSize);
-            }
-            else // Single corner
-            {
-                // Draw small cube for single corner
-                Gizmos.DrawWireCube(_currentHitPoint, Vector3.one * Constants.VOXEL_SIDE);
-                Gizmos.DrawSphere(_currentHitPoint, 0.3f);
-            }
+            DrawSelectionGizmos(_currentPreviewPoints, _currentPreviewCenter);
         }
 
-        // Draw locked selection when dragging (cyan/magenta)
+        // Draw Locked Selection (Cyan)
         if (_hasLockedSelection && _isDragging)
         {
-            // Color based on current mode
-            Gizmos.color = _currentMode == TerraformMode.Smooth ? Color.cyan : Color.magenta;
-            
-            if (_currentSelection == SelectionType.Area)
-            {
-                // Draw filled sphere for locked area
-                Gizmos.DrawWireSphere(_lockedHitPoint, _sizeHit * Constants.VOXEL_SIDE / 2);
-                Gizmos.color = new Color(Gizmos.color.r, Gizmos.color.g, Gizmos.color.b, 0.3f);
-                Gizmos.DrawSphere(_lockedHitPoint, _sizeHit * Constants.VOXEL_SIDE / 2);
-                
-                // Draw height indicator line
-                Gizmos.color = _currentHeightStep > 0 ? Color.green : (_currentHeightStep < 0 ? Color.red : Color.yellow);
-                float heightOffset = _currentHeightStep * _heightStepSize;
-                Vector3 targetPoint = _lockedHitPoint + Vector3.up * heightOffset;
-                Gizmos.DrawLine(_lockedHitPoint, targetPoint);
-                Gizmos.DrawSphere(targetPoint, 0.5f);
-                
-                // Draw text-like visualization with lines showing height
-                for (int i = 0; i <= Mathf.Abs(_currentHeightStep); i++)
-                {
-                    float t = i / (float)Mathf.Max(1, Mathf.Abs(_currentHeightStep));
-                    Vector3 pos = Vector3.Lerp(_lockedHitPoint, targetPoint, t);
-                    Gizmos.DrawWireCube(pos, Vector3.one * 0.5f);
-                }
-            }
-            else // Single corner locked
-            {
-                Gizmos.DrawWireCube(_lockedHitPoint, Vector3.one * Constants.VOXEL_SIDE * 1.5f);
-                Gizmos.DrawSphere(_lockedHitPoint, 0.5f);
-                
-                // Height indicator
-                Gizmos.color = _currentHeightStep > 0 ? Color.green : (_currentHeightStep < 0 ? Color.red : Color.yellow);
-                float heightOffset = _currentHeightStep * _heightStepSize;
-                Vector3 targetPoint = _lockedHitPoint + Vector3.up * heightOffset;
-                Gizmos.DrawLine(_lockedHitPoint, targetPoint);
-                Gizmos.DrawSphere(targetPoint, 0.8f);
-            }
+            Gizmos.color = Color.cyan;
+            DrawSelectionGizmos(_lockedSelectedPoints, _lockedHitCenter);
+
+            // Draw height indicator
+
+            Gizmos.color = Color.yellow;
+            // Visual scale: show accumulated drag
+            Vector3 targetPos = _lockedHitCenter + Vector3.up * (_accumulatedDrag * 0.5f);
+
+            Gizmos.DrawLine(_lockedHitCenter, targetPos);
+            Gizmos.DrawSphere(targetPos, 0.2f);
+        }
+    }
+
+    private void DrawSelectionGizmos(List<Vector3> points, Vector3 center)
+    {
+        if (points.Count == 1)
+        {
+            // Corner
+            Gizmos.DrawWireSphere(points[0], 0.2f);
+            Gizmos.DrawCube(points[0], Vector3.one * 0.1f);
+        }
+        else if (points.Count == 4)
+        {
+            // Face - Draw Quad
+            // Assuming order: 00, 10, 01, 11 (x,z)
+            // But List order from DetermineSelection is: (x,y,z), (x+1,y,z), (x,y,z+1), (x+1,y,z+1)
+            // 0: (0,0)
+            // 1: (1,0)
+            // 2: (0,1)
+            // 3: (1,1)
+            // Lines: 0-1, 1-3, 3-2, 2-0
+
+
+            Gizmos.DrawLine(points[0], points[1]);
+            Gizmos.DrawLine(points[1], points[3]);
+            Gizmos.DrawLine(points[3], points[2]);
+            Gizmos.DrawLine(points[2], points[0]);
+
+            // Draw Center
+
+            Gizmos.DrawSphere(center, 0.1f);
         }
     }
 #endif

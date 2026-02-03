@@ -1,17 +1,19 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 using System.IO;
+using UnityEngine;
 
 public class ChunkManager : Singleton<ChunkManager>
 {
     [Tooltip("Material used by all the terrain.")]
     public Material _terrainMaterial;
 
-    [Range(3, Constants.REGION_SIZE / 2)] [Tooltip("Chunks load and visible for the player,radius distance.")]
+    [Range(3, Constants.REGION_SIZE / 2)]
+    [Tooltip("Chunks load and visible for the player,radius distance.")]
     public int _chunkViewDistance = 10;
 
-    [Range(0.1f, 0.6f)] [Tooltip("Distance extra for destroy inactive chunks, this chunks consume ram, but load faster.")]
+    [Range(0.1f, 0.6f)]
+    [Tooltip("Distance extra for destroy inactive chunks, this chunks consume ram, but load faster.")]
     public float _chunkMantainDistance = 0.3f;
 
     [Tooltip("Use the camera position to calculate the player position. True-> use Camera.main tag / False-> use Player tag")]
@@ -311,6 +313,71 @@ public class ChunkManager : Singleton<ChunkManager>
                     //Debug.Log(distance / range);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Modify a specific list of points in the world with a fixed modification value.
+    /// Used for precise editing (RCT style).
+    /// </summary>
+    public void ModifyDiscretePoints(List<Vector3> points, int modification, int mat)
+    {
+        foreach (Vector3 p in points)
+        {
+            // Normalize to Voxel Space
+            Vector3 voxelPoint = new Vector3(p.x / Constants.VOXEL_SIDE, p.y / Constants.VOXEL_SIDE, p.z / Constants.VOXEL_SIDE);
+
+            // Round to nearest integer to get the exact vertex index
+            Vector3 vertexPoint = new Vector3(Mathf.RoundToInt(voxelPoint.x), Mathf.RoundToInt(voxelPoint.y), Mathf.RoundToInt(voxelPoint.z));
+
+            ModifyVoxelHelper(vertexPoint, modification, mat);
+        }
+    }
+
+    /// <summary>
+    /// Helper to modify a single voxel and handle chunk edge cases
+    /// </summary>
+    private void ModifyVoxelHelper(Vector3 vertexPoint, int chunkModification, int mat)
+    {
+        //Chunk of the vertexPoint
+        Vector2Int hitChunk = new Vector2Int(Mathf.CeilToInt((vertexPoint.x + 1 - Constants.CHUNK_SIZE / 2) / Constants.CHUNK_SIZE),
+            Mathf.CeilToInt((vertexPoint.z + 1 - Constants.CHUNK_SIZE / 2) / Constants.CHUNK_SIZE));
+
+        //Position of the vertexPoint in the chunk (x,y,z)
+        Vector3Int vertexChunk = new Vector3Int((int)(vertexPoint.x - hitChunk.x * Constants.CHUNK_SIZE + Constants.CHUNK_VERTEX_SIZE / 2),
+            (int)(vertexPoint.y + Constants.CHUNK_VERTEX_HEIGHT / 2),
+            (int)(vertexPoint.z - hitChunk.y * Constants.CHUNK_SIZE + Constants.CHUNK_VERTEX_SIZE / 2));
+
+        if (chunkDict.ContainsKey(hitChunk))
+            chunkDict[hitChunk].ModifyTerrain(vertexChunk, chunkModification, mat);
+
+        //Functions for change last vertex of chunk (vertex that touch others chunk)
+        if (vertexChunk.x == 0 && vertexChunk.z == 0) //Interact with chunk(-1,-1), chunk(-1,0) and chunk(0,-1)
+        {
+            //Vertex of chunk (-1,0)
+            hitChunk.x -= 1; //Chunk -1
+            vertexChunk.x = Constants.CHUNK_SIZE; //Vertex of a chunk -1, last vertex
+            if (chunkDict.ContainsKey(hitChunk)) chunkDict[hitChunk].ModifyTerrain(vertexChunk, chunkModification, mat);
+            //Vertex of chunk (-1,-1)
+            hitChunk.y -= 1;
+            vertexChunk.z = Constants.CHUNK_SIZE;
+            if (chunkDict.ContainsKey(hitChunk)) chunkDict[hitChunk].ModifyTerrain(vertexChunk, chunkModification, mat);
+            //Vertex of chunk (0,-1)
+            hitChunk.x += 1;
+            vertexChunk.x = 0;
+            if (chunkDict.ContainsKey(hitChunk)) chunkDict[hitChunk].ModifyTerrain(vertexChunk, chunkModification, mat);
+        }
+        else if (vertexChunk.x == 0) //Interact with vertex of chunk(-1,0)
+        {
+            hitChunk.x -= 1;
+            vertexChunk.x = Constants.CHUNK_SIZE;
+            if (chunkDict.ContainsKey(hitChunk)) chunkDict[hitChunk].ModifyTerrain(vertexChunk, chunkModification, mat);
+        }
+        else if (vertexChunk.z == 0) //Interact with vertex of chunk(0,-1)
+        {
+            hitChunk.y -= 1;
+            vertexChunk.z = Constants.CHUNK_SIZE;
+            if (chunkDict.ContainsKey(hitChunk)) chunkDict[hitChunk].ModifyTerrain(vertexChunk, chunkModification, mat);
         }
     }
 

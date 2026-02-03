@@ -11,6 +11,8 @@ public class FlyingCamera : MonoBehaviour
     private float pitch = 0.0f;
     private Vector2 pitchClamp = new(-70, 80);
 
+    public bool InputLocked { get; set; } = false;
+
     void Start()
     {
         if (_hideMouse)
@@ -26,8 +28,8 @@ public class FlyingCamera : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        // Only allow movement and rotation if mouse is locked
-        if (Cursor.lockState != CursorLockMode.Locked)
+        // Only allow movement and rotation if mouse is locked AND not externally locked
+        if (Cursor.lockState != CursorLockMode.Locked || InputLocked)
             return;
 
         // Shift to move faster
