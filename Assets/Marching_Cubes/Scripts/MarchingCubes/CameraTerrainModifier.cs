@@ -90,7 +90,11 @@ public class CameraTerrainModifier : MonoBehaviour
 
     private void DetermineSelection(Vector3 hitPoint)
     {
-        Vector3 localPos = hitPoint / Constants.VOXEL_SIDE;
+        Vector3 localPos = new Vector3(
+            hitPoint.x / Constants.VOXEL_SIDE_XZ,
+            hitPoint.y / Constants.VOXEL_SIDE_Y,
+            hitPoint.z / Constants.VOXEL_SIDE_XZ
+            );
         Vector3 rounded = new Vector3(Mathf.Round(localPos.x), Mathf.Round(localPos.y), Mathf.Round(localPos.z));
         Vector3 diff = localPos - rounded;
 
@@ -135,7 +139,11 @@ public class CameraTerrainModifier : MonoBehaviour
 
     private Vector3 itemSpaceToWorld(Vector3 itemSpace)
     {
-        return itemSpace * Constants.VOXEL_SIDE;
+        return new Vector3(
+            itemSpace.x * Constants.VOXEL_SIDE_XZ,
+            itemSpace.y * Constants.VOXEL_SIDE_Y,
+            itemSpace.z * Constants.VOXEL_SIDE_XZ
+            );
     }
 
     private void UpdateGizmoPreview()

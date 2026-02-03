@@ -6,7 +6,8 @@ using UnityEngine;
 
 public class MeshBuilder : Singleton<MeshBuilder>
 {
-    [Tooltip("Value from which the vertices are inside the figure")] [Range(0, 255)]
+    [Tooltip("Value from which the vertices are inside the figure")]
+    [Range(0, 255)]
     public int _isoLevel = 128;
 
     [Tooltip("Allow to get a middle point between the voxel vertices in function of the weight of the vertices")]
@@ -184,9 +185,9 @@ public class MeshBuilder : Singleton<MeshBuilder>
         if (b[index] >= _isoLevel && material < colorVoxel)
             colorVoxel = material;
         return new Vector4(
-            (x - Constants.CHUNK_SIZE / 2) * Constants.VOXEL_SIDE,
-            (y - Constants.MAX_HEIGHT / 2) * Constants.VOXEL_SIDE,
-            (z - Constants.CHUNK_SIZE / 2) * Constants.VOXEL_SIDE,
+            (x - Constants.CHUNK_SIZE / 2) * Constants.VOXEL_SIDE_XZ,
+            (y - Constants.MAX_HEIGHT / 2) * Constants.VOXEL_SIDE_Y,
+            (z - Constants.CHUNK_SIZE / 2) * Constants.VOXEL_SIDE_XZ,
             b[index]);
     }
 

@@ -128,7 +128,7 @@ public class Chunk : MonoBehaviour
         {
             //Gizmos.color = new Color(1f,0.28f,0f);
             Gizmos.color = Color.Lerp(Color.red, Color.magenta, ((transform.position.x + transform.position.z) % 100) / 100);
-            Gizmos.DrawWireCube(transform.position, new Vector3(Constants.CHUNK_SIDE, Constants.MAX_HEIGHT * Constants.VOXEL_SIDE, Constants.CHUNK_SIDE));
+            Gizmos.DrawWireCube(transform.position, new Vector3(Constants.CHUNK_SIDE, Constants.MAX_HEIGHT * Constants.VOXEL_SIDE_Y, Constants.CHUNK_SIDE));
         }
     }
 #endif

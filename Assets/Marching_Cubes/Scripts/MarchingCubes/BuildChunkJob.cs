@@ -102,9 +102,9 @@ public struct BuildChunkJob : IJob
         if (chunkData[index] >= isoLevel && material < colorVoxel)
             colorVoxel = material;
         return new float4(
-            (x - Constants.CHUNK_SIZE / 2) * Constants.VOXEL_SIDE,
-            (y - Constants.MAX_HEIGHT / 2) * Constants.VOXEL_SIDE,
-            (z - Constants.CHUNK_SIZE / 2) * Constants.VOXEL_SIDE,
+            (x - Constants.CHUNK_SIZE / 2) * Constants.VOXEL_SIDE_XZ,
+            (y - Constants.MAX_HEIGHT / 2) * Constants.VOXEL_SIDE_Y,
+            (z - Constants.CHUNK_SIZE / 2) * Constants.VOXEL_SIDE_XZ,
             chunkData[index]);
     }
 

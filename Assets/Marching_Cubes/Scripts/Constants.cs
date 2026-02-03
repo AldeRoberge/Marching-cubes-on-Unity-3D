@@ -1,8 +1,8 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 
 public static class Constants
 {
@@ -10,7 +10,11 @@ public static class Constants
 
     public const int CHUNK_SIZE = 16; //Number voxel per side
     public const int MAX_HEIGHT = 80; //Number of voxel of height in a chunk, pair number recommended
-    public const float VOXEL_SIDE = 1f; //Size of a side of a voxel
+
+    // Dimensions
+
+    public const float VOXEL_SIDE_XZ = 1f; // Size of X and Z sides
+    public const float VOXEL_SIDE_Y = 0.5f; // Size of Y side (height)
 
     public const int REGION_SIZE = 32; //Number chunk per side. If change REGION_SIZE maybe you need change REGION_LOOKTABLE_POS_BYTE.
     public const int REGION_LOOKTABLE_POS_BYTE = 2; //Number of byte needed for represent (REGION_SIZE * REGION_SIZE) +1. Example: (32 x 32) +1= 1025 = 2 bytes needed.  MAX = 4.
@@ -39,7 +43,7 @@ public static class Constants
     public const int REGION_BYTES = REGION_SIZE * REGION_SIZE * CHUNK_BYTES;
     public const int REGION_LOOKTABLE_BYTES = REGION_LOOKTABLE_POS_BYTE * REGION_SIZE * REGION_SIZE + REGION_LOOKTABLE_POS_BYTE; //REGION_LOOKTABLE_POS_BYTE offset because first position indicate the last writes position in the chunkTable
 
-    public const float CHUNK_SIDE = CHUNK_SIZE * VOXEL_SIDE;
+    public const float CHUNK_SIDE = CHUNK_SIZE * VOXEL_SIDE_XZ;
     public const int CHUNK_VOXEL_AREA = CHUNK_SIZE * CHUNK_SIZE;
     public const int CHUNK_VERTEX_SIZE = CHUNK_SIZE + 1;
     public const int CHUNK_VERTEX_HEIGHT = MAX_HEIGHT + 1;
