@@ -415,6 +415,11 @@ PrefabInstance:
       propertyPath: _terrainMaterial
       value: 
       objectReference: {fileID: 2100000, guid: e5e158f8f9cada14380f5755c6cef11c, type: 2}
+    - target: {fileID: 3206755284426175507, guid: 0dd8af356d25ee441896c42d31ada3b4,
+        type: 3}
+      propertyPath: _useCameraPosition
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3577543227352792563, guid: 0dd8af356d25ee441896c42d31ada3b4,
         type: 3}
       propertyPath: m_Name

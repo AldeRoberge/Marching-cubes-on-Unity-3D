@@ -39,6 +39,8 @@ public class MeshBuilder : Singleton<MeshBuilder>
         
         if (_useGreedyMeshing && buildChunkJob.vertex.Length > 0)
         {
+            int originalVertCount = buildChunkJob.vertex.Length;
+            
             // Create temporary arrays from the job output
             NativeArray<float3> tempVertices = new NativeArray<float3>(buildChunkJob.vertex.Length, Allocator.TempJob);
             NativeArray<float2> tempUVs = new NativeArray<float2>(buildChunkJob.uv.Length, Allocator.TempJob);
@@ -63,6 +65,13 @@ public class MeshBuilder : Singleton<MeshBuilder>
             
             JobHandle greedyHandle = greedyMeshJob.Schedule();
             greedyHandle.Complete();
+            
+            // Debug output to verify greedy meshing is working
+            int optimizedVertCount = finalVertices.Length;
+            if (originalVertCount != optimizedVertCount)
+            {
+                Debug.Log($"Greedy Meshing: {originalVertCount} verts -> {optimizedVertCount} verts ({((originalVertCount - optimizedVertCount) * 100f / originalVertCount):F1}% reduction)");
+            }
             
             // Clean up temporary arrays
             tempVertices.Dispose();
