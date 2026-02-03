@@ -4,21 +4,21 @@ using UnityEngine;
 
 public class NoiseTerrainViewer : MonoBehaviour
 {
+    [Tooltip("Number of chunks of the view area")] [Range(1, 20)]
+    public int _testSize = 1;
 
-    [Tooltip("Number of chunks of the view area")]
-    [Range(1, 20)]
-    public int testSize = 1;
     [Tooltip("Offset from the chunk (0,0), move the whole map generation")]
-    public Vector2Int chunkOffset;
-    private Dictionary<Vector2Int, Chunk> chunkDict = new Dictionary<Vector2Int, Chunk>();
+    public Vector2Int _chunkOffset;
+
+    private Dictionary<Vector2Int, Chunk> chunkDict = new();
     private NoiseManager noiseManager;
-    private Region fakeRegion;//Used because chunks need a fahter region
- 
+    private Region fakeRegion; //Used because chunks need a fahter region
+
 
     private void Start()
     {
         noiseManager = NoiseManager.Instance;
-        fakeRegion = new Region(1000,1000);
+        fakeRegion = new Region(1000, 1000);
         GenerateTerrain();
     }
 
@@ -27,30 +27,29 @@ public class NoiseTerrainViewer : MonoBehaviour
     /// </summary>
     public void GenerateTerrain()
     {
-        if(chunkDict.Count != 0)
+        if (chunkDict.Count != 0)
         {
-            foreach(Chunk chunk in chunkDict.Values)
+            foreach (Chunk chunk in chunkDict.Values)
             {
                 Destroy(chunk.gameObject);
             }
+
             chunkDict.Clear();
         }
-        int halfSize = Mathf.FloorToInt(testSize / 2);
-        for(int z= -halfSize; z< halfSize+1; z++)
+
+        int halfSize = Mathf.FloorToInt(_testSize / 2);
+        for (int z = -halfSize; z < halfSize + 1; z++)
         {
-            for (int x = -halfSize; x < halfSize+1; x++)
+            for (int x = -halfSize; x < halfSize + 1; x++)
             {
                 Vector2Int key = new Vector2Int(x, z);
                 GameObject chunkObj = new GameObject("Chunk_" + key.x + "|" + key.y, typeof(MeshFilter), typeof(MeshRenderer));
                 chunkObj.transform.parent = transform;
                 chunkObj.transform.position = new Vector3(key.x * Constants.CHUNK_SIDE, 0, key.y * Constants.CHUNK_SIDE);
 
-                Vector2Int offsetKey = new Vector2Int(x + chunkOffset.x, z+ chunkOffset.y);
+                Vector2Int offsetKey = new Vector2Int(x + _chunkOffset.x, z + _chunkOffset.y);
                 chunkDict.Add(key, chunkObj.AddComponent<Chunk>().ChunkInit(noiseManager.GenerateChunkData(offsetKey), key.x, key.y, fakeRegion, false));
             }
         }
     }
-
 }
-
-

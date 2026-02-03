@@ -1,16 +1,15 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
-using Unity.Jobs;
+﻿using Unity.Burst;
 using Unity.Collections;
-using Unity.Burst;
+using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 
-[BurstCompile]//For test without burst, just remove this flag.
+[BurstCompile] //For test without burst, just remove this flag.
 public struct BuildChunkJob : IJob
 {
-    [ReadOnly]public NativeArray<byte> chunkData;
-    [WriteOnly]public NativeList<float3> vertex;
-    [WriteOnly]public NativeList<float2> uv;
+    [ReadOnly] public NativeArray<byte> chunkData;
+    [WriteOnly] public NativeList<float3> vertex;
+    [WriteOnly] public NativeList<float2> uv;
 
     [ReadOnly] public int isoLevel;
     [ReadOnly] public bool interpolate;
@@ -20,13 +19,13 @@ public struct BuildChunkJob : IJob
     /// </summary>
     public void Execute()
     {
-        for (int y = 0; y < Constants.MAX_HEIGHT; y++)//height
+        for (int y = 0; y < Constants.MAX_HEIGHT; y++) //height
         {
-            for (int z = 1; z < Constants.CHUNK_SIZE + 1; z++)//column, start at 1, because Z axis is inverted and need -1 as offset
+            for (int z = 1; z < Constants.CHUNK_SIZE + 1; z++) //column, start at 1, because Z axis is inverted and need -1 as offset
             {
-                for (int x = 0; x < Constants.CHUNK_SIZE; x++)//line 
+                for (int x = 0; x < Constants.CHUNK_SIZE; x++) //line 
                 {
-                    NativeArray<float4> cube = new NativeArray<float4>(8,Allocator.Temp);
+                    NativeArray<float4> cube = new NativeArray<float4>(8, Allocator.Temp);
                     int mat = Constants.NUMBER_MATERIALS;
                     cube[0] = CalculateVertexChunk(x, y, z, ref mat);
                     cube[1] = CalculateVertexChunk(x + 1, y, z, ref mat);
@@ -38,9 +37,7 @@ public struct BuildChunkJob : IJob
                     cube[7] = CalculateVertexChunk(x, y + 1, z - 1, ref mat);
                     CalculateVertex(cube, mat);
                 }
-
             }
-
         }
     }
 
@@ -60,40 +57,38 @@ public struct BuildChunkJob : IJob
         if (cube[6].w < isoLevel) cubeindex |= 64;
         if (cube[7].w < isoLevel) cubeindex |= 128;
 
-        for (int i = cubeindex * 16; jobTriTable[i] != -1; i++)
+        for (int i = cubeindex * 16; JobTriTable[i] != -1; i++)
         {
-            int v1 = jobCornerIndexAFromEdge[jobTriTable[i]];
-            int v2 = jobCornerIndexBFromEdge[jobTriTable[i]];
+            int v1 = JobCornerIndexAFromEdge[JobTriTable[i]];
+            int v2 = JobCornerIndexBFromEdge[JobTriTable[i]];
 
-            float weight = 1;//Unused variable, must be used for interpolation terrain
+            float weight = 1; //Unused variable, must be used for interpolation terrain
             if (interpolate)
-                vertex.Add(interporlateVertex(cube[v1], cube[v2], out weight));
+                vertex.Add(InterporlateVertex(cube[v1], cube[v2], out weight));
             else
-                vertex.Add(midlePointVertex(cube[v1], cube[v2]));
+                vertex.Add(MidlePointVertex(cube[v1], cube[v2]));
 
 
             const float uvOffset = 0.01f; //Small offset for avoid pick pixels of other textures
             //NEED REWORKING FOR CORRECT WORKING, now have problems with the directions of the uv
             if (i % 6 == 0)
                 uv.Add(new float2(Constants.MATERIAL_SIZE * (colorVert % Constants.MATERIAL_FOR_ROW) + Constants.MATERIAL_SIZE - uvOffset,
-                                  1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - uvOffset));
+                    1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - uvOffset));
             else if (i % 6 == 1)
                 uv.Add(new float2(Constants.MATERIAL_SIZE * (colorVert % Constants.MATERIAL_FOR_ROW) + Constants.MATERIAL_SIZE - uvOffset,
-                                  1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - Constants.MATERIAL_SIZE + uvOffset));
+                    1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - Constants.MATERIAL_SIZE + uvOffset));
             else if (i % 6 == 2)
                 uv.Add(new float2(Constants.MATERIAL_SIZE * (colorVert % Constants.MATERIAL_FOR_ROW) + uvOffset,
-                                  1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - uvOffset));
+                    1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - uvOffset));
             else if (i % 6 == 3)
                 uv.Add(new float2(Constants.MATERIAL_SIZE * (colorVert % Constants.MATERIAL_FOR_ROW + uvOffset),
-                                  1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - Constants.MATERIAL_SIZE + uvOffset));
+                    1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - Constants.MATERIAL_SIZE + uvOffset));
             else if (i % 6 == 4)
                 uv.Add(new float2(Constants.MATERIAL_SIZE * (colorVert % Constants.MATERIAL_FOR_ROW) + Constants.MATERIAL_SIZE - uvOffset,
-                                  1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - Constants.MATERIAL_SIZE + uvOffset));
+                    1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - Constants.MATERIAL_SIZE + uvOffset));
             else if (i % 6 == 5)
                 uv.Add(new float2(Constants.MATERIAL_SIZE * (colorVert % Constants.MATERIAL_FOR_ROW) + uvOffset,
-                                  1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - uvOffset));
-
-
+                    1 - Constants.MATERIAL_SIZE * Mathf.Floor(colorVert / Constants.MATERIAL_FOR_ROW) - uvOffset));
         }
     }
 
@@ -114,61 +109,66 @@ public struct BuildChunkJob : IJob
     }
 
     #region helpMethods
+
     /// <summary>
     /// Calculate a point between two vertex using the weight of each vertex , used in interpolation voxel building.
     /// </summary>
-    public float3 interporlateVertex(float4 p1, float4 p2, out float interpolation)
+    public float3 InterporlateVertex(float4 p1, float4 p2, out float interpolation)
     {
         interpolation = (isoLevel - p1.w) / (p2.w - p1.w);
-        return math.lerp(new float3(p1.x,p1.y,p1.z), new float3(p2.x,p2.y,p2.z), interpolation);
+        return math.lerp(new float3(p1.x, p1.y, p1.z), new float3(p2.x, p2.y, p2.z), interpolation);
     }
+
     /// <summary>
     /// Calculate the middle point between two vertex, for no interpolation voxel building.
     /// </summary>
-    public float3 midlePointVertex(float4 p1, float4 p2)
+    public float3 MidlePointVertex(float4 p1, float4 p2)
     {
-        return new float3(p1.x+p2.x, p1.y+p2.y, p1.z+p2.z) / 2;
+        return new float3(p1.x + p2.x, p1.y + p2.y, p1.z + p2.z) / 2;
     }
+
     #endregion
 
     #region mesh building tables
+
     //Mesh build tables
-    public static readonly int[] jobEdgeTable = new int[]{
-        0x0  , 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
+    public static readonly int[] JobEdgeTable = {
+        0x0, 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
         0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03, 0xe09, 0xf00,
-        0x190, 0x99 , 0x393, 0x29a, 0x596, 0x49f, 0x795, 0x69c,
+        0x190, 0x99, 0x393, 0x29a, 0x596, 0x49f, 0x795, 0x69c,
         0x99c, 0x895, 0xb9f, 0xa96, 0xd9a, 0xc93, 0xf99, 0xe90,
-        0x230, 0x339, 0x33 , 0x13a, 0x636, 0x73f, 0x435, 0x53c,
+        0x230, 0x339, 0x33, 0x13a, 0x636, 0x73f, 0x435, 0x53c,
         0xa3c, 0xb35, 0x83f, 0x936, 0xe3a, 0xf33, 0xc39, 0xd30,
-        0x3a0, 0x2a9, 0x1a3, 0xaa , 0x7a6, 0x6af, 0x5a5, 0x4ac,
+        0x3a0, 0x2a9, 0x1a3, 0xaa, 0x7a6, 0x6af, 0x5a5, 0x4ac,
         0xbac, 0xaa5, 0x9af, 0x8a6, 0xfaa, 0xea3, 0xda9, 0xca0,
-        0x460, 0x569, 0x663, 0x76a, 0x66 , 0x16f, 0x265, 0x36c,
+        0x460, 0x569, 0x663, 0x76a, 0x66, 0x16f, 0x265, 0x36c,
         0xc6c, 0xd65, 0xe6f, 0xf66, 0x86a, 0x963, 0xa69, 0xb60,
-        0x5f0, 0x4f9, 0x7f3, 0x6fa, 0x1f6, 0xff , 0x3f5, 0x2fc,
+        0x5f0, 0x4f9, 0x7f3, 0x6fa, 0x1f6, 0xff, 0x3f5, 0x2fc,
         0xdfc, 0xcf5, 0xfff, 0xef6, 0x9fa, 0x8f3, 0xbf9, 0xaf0,
-        0x650, 0x759, 0x453, 0x55a, 0x256, 0x35f, 0x55 , 0x15c,
+        0x650, 0x759, 0x453, 0x55a, 0x256, 0x35f, 0x55, 0x15c,
         0xe5c, 0xf55, 0xc5f, 0xd56, 0xa5a, 0xb53, 0x859, 0x950,
-        0x7c0, 0x6c9, 0x5c3, 0x4ca, 0x3c6, 0x2cf, 0x1c5, 0xcc ,
+        0x7c0, 0x6c9, 0x5c3, 0x4ca, 0x3c6, 0x2cf, 0x1c5, 0xcc,
         0xfcc, 0xec5, 0xdcf, 0xcc6, 0xbca, 0xac3, 0x9c9, 0x8c0,
         0x8c0, 0x9c9, 0xac3, 0xbca, 0xcc6, 0xdcf, 0xec5, 0xfcc,
-        0xcc , 0x1c5, 0x2cf, 0x3c6, 0x4ca, 0x5c3, 0x6c9, 0x7c0,
+        0xcc, 0x1c5, 0x2cf, 0x3c6, 0x4ca, 0x5c3, 0x6c9, 0x7c0,
         0x950, 0x859, 0xb53, 0xa5a, 0xd56, 0xc5f, 0xf55, 0xe5c,
-        0x15c, 0x55 , 0x35f, 0x256, 0x55a, 0x453, 0x759, 0x650,
+        0x15c, 0x55, 0x35f, 0x256, 0x55a, 0x453, 0x759, 0x650,
         0xaf0, 0xbf9, 0x8f3, 0x9fa, 0xef6, 0xfff, 0xcf5, 0xdfc,
-        0x2fc, 0x3f5, 0xff , 0x1f6, 0x6fa, 0x7f3, 0x4f9, 0x5f0,
+        0x2fc, 0x3f5, 0xff, 0x1f6, 0x6fa, 0x7f3, 0x4f9, 0x5f0,
         0xb60, 0xa69, 0x963, 0x86a, 0xf66, 0xe6f, 0xd65, 0xc6c,
-        0x36c, 0x265, 0x16f, 0x66 , 0x76a, 0x663, 0x569, 0x460,
+        0x36c, 0x265, 0x16f, 0x66, 0x76a, 0x663, 0x569, 0x460,
         0xca0, 0xda9, 0xea3, 0xfaa, 0x8a6, 0x9af, 0xaa5, 0xbac,
-        0x4ac, 0x5a5, 0x6af, 0x7a6, 0xaa , 0x1a3, 0x2a9, 0x3a0,
+        0x4ac, 0x5a5, 0x6af, 0x7a6, 0xaa, 0x1a3, 0x2a9, 0x3a0,
         0xd30, 0xc39, 0xf33, 0xe3a, 0x936, 0x83f, 0xb35, 0xa3c,
-        0x53c, 0x435, 0x73f, 0x636, 0x13a, 0x33 , 0x339, 0x230,
+        0x53c, 0x435, 0x73f, 0x636, 0x13a, 0x33, 0x339, 0x230,
         0xe90, 0xf99, 0xc93, 0xd9a, 0xa96, 0xb9f, 0x895, 0x99c,
-        0x69c, 0x795, 0x49f, 0x596, 0x29a, 0x393, 0x99 , 0x190,
+        0x69c, 0x795, 0x49f, 0x596, 0x29a, 0x393, 0x99, 0x190,
         0xf00, 0xe09, 0xd03, 0xc0a, 0xb06, 0xa0f, 0x905, 0x80c,
-        0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0   };
+        0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0
+    };
 
-    public static readonly int[] jobTriTable = new int[]
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    public static readonly int[] JobTriTable = {
+        -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         0, 1, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         1, 8, 3, 9, 8, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -423,9 +423,10 @@ public struct BuildChunkJob : IJob
         1, 3, 8, 9, 1, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         0, 9, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-        -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+        -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+    };
 
-    public static readonly int[] jobCornerIndexAFromEdge = new int[]{
+    public static readonly int[] JobCornerIndexAFromEdge = {
         0,
         1,
         2,
@@ -440,7 +441,7 @@ public struct BuildChunkJob : IJob
         3
     };
 
-    public static readonly int[] jobCornerIndexBFromEdge = new int[]{
+    public static readonly int[] JobCornerIndexBFromEdge = {
         1,
         2,
         3,
@@ -454,6 +455,6 @@ public struct BuildChunkJob : IJob
         6,
         7
     };
-    #endregion
 
+    #endregion
 }

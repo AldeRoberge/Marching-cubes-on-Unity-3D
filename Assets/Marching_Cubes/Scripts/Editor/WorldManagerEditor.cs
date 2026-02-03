@@ -11,13 +11,14 @@ public class WorldManagerEditor : Editor
     {
         DrawDefaultInspector();
 
-        EditorGUILayout.Space();EditorGUILayout.Space();
+        EditorGUILayout.Space();
+        EditorGUILayout.Space();
 
         if (GUILayout.Button("Open worlds folder"))
         {
             if (!Directory.Exists(Application.persistentDataPath + WorldManager.WORLDS_DIRECTORY))
                 Directory.CreateDirectory(Application.persistentDataPath + WorldManager.WORLDS_DIRECTORY);
-            EditorUtility.RevealInFinder(Application.persistentDataPath +WorldManager.WORLDS_DIRECTORY);
+            EditorUtility.RevealInFinder(Application.persistentDataPath + WorldManager.WORLDS_DIRECTORY);
         }
     }
 }

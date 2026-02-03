@@ -6,14 +6,16 @@
 public abstract class Singleton<T> : MonoBehaviour where T : Component
 {
     #region Fields
+
     /// <summary>
     /// The instance.
     /// </summary>
-    private static T instance;
+    private static T _instance;
 
     #endregion
 
     #region Properties
+
     /// <summary>
     /// Gets the instance.
     /// </summary>
@@ -22,31 +24,34 @@ public abstract class Singleton<T> : MonoBehaviour where T : Component
     {
         get
         {
-            if (instance == null)
+            if (_instance == null)
             {
-                instance = FindObjectOfType<T>();
-                if (instance == null)
+                _instance = FindObjectOfType<T>();
+                if (_instance == null)
                 {
                     GameObject obj = new GameObject();
                     obj.name = typeof(T).Name;
-                    instance = obj.AddComponent<T>();
+                    _instance = obj.AddComponent<T>();
                     //DontDestroyOnLoad(instance);
                 }
             }
-            return instance;
+
+            return _instance;
         }
     }
+
     #endregion
 
     #region Methods
+
     /// <summary>
     /// Use this for initialization.
     /// </summary>
     public virtual void Awake()
     {
-        if (instance == null)
+        if (_instance == null)
         {
-            instance = this as T;
+            _instance = this as T;
             //DontDestroyOnLoad(gameObject);
         }
         else
@@ -58,8 +63,8 @@ public abstract class Singleton<T> : MonoBehaviour where T : Component
     //Destroy singleton instance on destroy
     public void OnDestroy()
     {
-        if (instance == this)
-            instance = null;
+        if (_instance == this)
+            _instance = null;
     }
 
     /// <summary>
@@ -67,7 +72,7 @@ public abstract class Singleton<T> : MonoBehaviour where T : Component
     /// </summary>
     public static bool IsCreated()
     {
-        return (instance != null);
+        return (_instance != null);
     }
 
     #endregion

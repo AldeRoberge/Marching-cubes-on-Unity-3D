@@ -1,10 +1,9 @@
-﻿
-//Code extracted from the https://stackoverflow.com/questions/40909052/using-gzip-to-compress-decompress-an-array-of-bytes stackoverflow question
+﻿//Code extracted from the https://stackoverflow.com/questions/40909052/using-gzip-to-compress-decompress-an-array-of-bytes stackoverflow question
 
 using System.IO;
 using System.IO.Compression;
 
-public class CompressHelper 
+public class CompressHelper
 {
     public static byte[] Compress(byte[] data)
     {

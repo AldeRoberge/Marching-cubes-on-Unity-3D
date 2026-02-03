@@ -1,20 +1,22 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
 public class CameraTerrainModifier : MonoBehaviour
 {
-    public Text textSize;
-    public Text textMaterial;
+    public Text _textSize;
+    public Text _textMaterial;
+
     [Tooltip("Range where the player can interact with the terrain")]
-    public float rangeHit = 100;
+    public float _rangeHit = 100;
+
     [Tooltip("Force of modifications applied to the terrain")]
-    public float modiferStrengh = 10;
+    public float _modiferStrengh = 10;
+
     [Tooltip("Size of the brush, number of vertex modified")]
-    public float sizeHit = 6;
-    [Tooltip("Color of the new voxels generated")][Range(0, Constants.NUMBER_MATERIALS-1)]
-    public int buildingMaterial = 0;
+    public float _sizeHit = 6;
+
+    [Tooltip("Color of the new voxels generated")] [Range(0, Constants.NUMBER_MATERIALS - 1)]
+    public int _buildingMaterial;
 
     private RaycastHit hit;
     private ChunkManager chunkManager;
@@ -28,44 +30,42 @@ public class CameraTerrainModifier : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-
         if (Input.GetMouseButton(0) || Input.GetMouseButton(1))
         {
-            float modification = (Input.GetMouseButton(0)) ? modiferStrengh : -modiferStrengh;
-            if (Physics.Raycast(transform.position, transform.forward, out hit, rangeHit))
+            float modification = (Input.GetMouseButton(0)) ? _modiferStrengh : -_modiferStrengh;
+            if (Physics.Raycast(transform.position, transform.forward, out hit, _rangeHit))
             {
-                chunkManager.ModifyChunkData(hit.point, sizeHit, modification, buildingMaterial);
+                chunkManager.ModifyChunkData(hit.point, _sizeHit, modification, _buildingMaterial);
             }
         }
 
         //Inputs
-        if (Input.GetAxis("Mouse ScrollWheel") > 0 && buildingMaterial != Constants.NUMBER_MATERIALS - 1)
+        if (Input.GetAxis("Mouse ScrollWheel") > 0 && _buildingMaterial != Constants.NUMBER_MATERIALS - 1)
         {
-            buildingMaterial++;
+            _buildingMaterial++;
             UpdateUI();
         }
-        else if (Input.GetAxis("Mouse ScrollWheel") < 0 && buildingMaterial != 0)
+        else if (Input.GetAxis("Mouse ScrollWheel") < 0 && _buildingMaterial != 0)
         {
-            buildingMaterial--;
-            UpdateUI();
-        }
-        
-        if(Input.GetKeyDown(KeyCode.Plus) || Input.GetKeyDown(KeyCode.KeypadPlus))
-        {
-            sizeHit++;
-            UpdateUI();
-        }
-        else if((Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus)) && sizeHit > 1)
-        {
-            sizeHit--;
+            _buildingMaterial--;
             UpdateUI();
         }
 
+        if (Input.GetKeyDown(KeyCode.Plus) || Input.GetKeyDown(KeyCode.KeypadPlus))
+        {
+            _sizeHit++;
+            UpdateUI();
+        }
+        else if ((Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus)) && _sizeHit > 1)
+        {
+            _sizeHit--;
+            UpdateUI();
+        }
     }
 
     public void UpdateUI()
     {
-        textSize.text = "(+ -) Brush size: " + sizeHit;
-        textMaterial.text = "(Mouse wheel) Actual material: " + buildingMaterial;
+        _textSize.text = "(+ -) Brush size: " + _sizeHit;
+        _textMaterial.text = "(Mouse wheel) Actual material: " + _buildingMaterial;
     }
 }
