@@ -12,10 +12,6 @@ public class MeshBuilder : Singleton<MeshBuilder>
     [Tooltip("Allow to get a middle point between the voxel vertices in function of the weight of the vertices")]
     public bool _interpolate;
 
-    [Tooltip("Apply greedy meshing optimization to reduce triangle count by merging coplanar faces")]
-    public bool _useGreedyMeshing = false;
-
-
     /// <summary>
     /// Method that calculate cubes, vertex and mesh in that order of a chunk.
     /// </summary>
@@ -33,56 +29,9 @@ public class MeshBuilder : Singleton<MeshBuilder>
         JobHandle jobHandle = buildChunkJob.Schedule();
         jobHandle.Complete();
 
-        // Optionally apply greedy meshing optimization
-        NativeList<float3> finalVertices;
-        NativeList<float2> finalUVs;
-        
-        if (_useGreedyMeshing && buildChunkJob.vertex.Length > 0)
-        {
-            int originalVertCount = buildChunkJob.vertex.Length;
-            
-            // Create temporary arrays from the job output
-            NativeArray<float3> tempVertices = new NativeArray<float3>(buildChunkJob.vertex.Length, Allocator.TempJob);
-            NativeArray<float2> tempUVs = new NativeArray<float2>(buildChunkJob.uv.Length, Allocator.TempJob);
-            
-            for (int i = 0; i < buildChunkJob.vertex.Length; i++)
-            {
-                tempVertices[i] = buildChunkJob.vertex[i];
-                tempUVs[i] = buildChunkJob.uv[i];
-            }
-            
-            // Apply greedy meshing
-            finalVertices = new NativeList<float3>(500, Allocator.TempJob);
-            finalUVs = new NativeList<float2>(100, Allocator.TempJob);
-            
-            GreedyMeshJob greedyMeshJob = new GreedyMeshJob
-            {
-                inputVertices = tempVertices,
-                inputUVs = tempUVs,
-                outputVertices = finalVertices,
-                outputUVs = finalUVs
-            };
-            
-            JobHandle greedyHandle = greedyMeshJob.Schedule();
-            greedyHandle.Complete();
-            
-            // Debug output to verify greedy meshing is working
-            int optimizedVertCount = finalVertices.Length;
-            if (originalVertCount != optimizedVertCount)
-            {
-                Debug.Log($"Greedy Meshing: {originalVertCount} verts -> {optimizedVertCount} verts ({((originalVertCount - optimizedVertCount) * 100f / originalVertCount):F1}% reduction)");
-            }
-            
-            // Clean up temporary arrays
-            tempVertices.Dispose();
-            tempUVs.Dispose();
-        }
-        else
-        {
-            // Use original output directly
-            finalVertices = buildChunkJob.vertex;
-            finalUVs = buildChunkJob.uv;
-        }
+        // Use original output directly
+        var finalVertices = buildChunkJob.vertex;
+        var finalUVs = buildChunkJob.uv;
 
         //Get all the data from the jobs and use to generate a Mesh
         Mesh meshGenerated = new Mesh();
@@ -108,13 +57,6 @@ public class MeshBuilder : Singleton<MeshBuilder>
         meshGenerated.RecalculateNormals();
         meshGenerated.RecalculateTangents();
 
-        //Dispose (Clear the jobs NativeLists)
-        if (_useGreedyMeshing && buildChunkJob.vertex.Length > 0)
-        {
-            finalVertices.Dispose();
-            finalUVs.Dispose();
-        }
-        
         buildChunkJob.vertex.Dispose();
         buildChunkJob.uv.Dispose();
         buildChunkJob.chunkData.Dispose();
