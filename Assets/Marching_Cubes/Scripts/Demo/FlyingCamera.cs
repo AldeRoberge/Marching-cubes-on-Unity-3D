@@ -27,23 +27,20 @@ public class FlyingCamera : MonoBehaviour
     void Update()
     {
         // Only allow movement and rotation if mouse is locked
-        if (Cursor.visible)
+        if (Cursor.lockState != CursorLockMode.Locked)
             return;
 
+        // Shift to move faster
+        float currentSpeed = Input.GetKey(KeyCode.LeftShift) ? _speed * 2f : _speed;
+
         var dir = Input.GetAxis("Vertical") * transform.forward + Input.GetAxis("Horizontal") * transform.right;
-        transform.position += (dir * _speed * Time.deltaTime);
-        
-        // Space and LeftShift for up/down
-        if (Input.GetKey(KeyCode.Space))
-            transform.position += Vector3.up * _speed * Time.deltaTime;
-        else if (Input.GetKey(KeyCode.LeftShift))
-            transform.position -= Vector3.up * _speed * Time.deltaTime;
-        
+        transform.position += (dir * currentSpeed * Time.deltaTime);
+
         // Q and E for up/down
         if (Input.GetKey(KeyCode.E))
-            transform.position += Vector3.up * _speed * Time.deltaTime;
+            transform.position += Vector3.up * currentSpeed * Time.deltaTime;
         else if (Input.GetKey(KeyCode.Q))
-            transform.position -= Vector3.up * _speed * Time.deltaTime;
+            transform.position -= Vector3.up * currentSpeed * Time.deltaTime;
 
         yaw += _rotationSpeed * Input.GetAxis("Mouse X");
         pitch -= _rotationSpeed * Input.GetAxis("Mouse Y");
